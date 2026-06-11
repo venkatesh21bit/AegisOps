@@ -11,3 +11,7 @@ wheels/
 
 # Environment secrets
 .env
+kubeconfig.yaml
+
+# Kind binary
+kind-windows-amd64.exe

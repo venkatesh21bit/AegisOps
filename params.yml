@@ -1,0 +1,8 @@
+autonomy_level: L3 # Supported: L0, L1, L2, L3
+service_restrictions:
+  - service: payment-service
+    unrestricted_actions: ["get_logs", "get_pod_status"]
+    approval_required_actions: ["restart_deployment", "update_deployment_image"]
+  - service: database-service
+    unrestricted_actions: ["get_logs"]
+    approval_required_actions: [] # All other mutating actions are blocked
