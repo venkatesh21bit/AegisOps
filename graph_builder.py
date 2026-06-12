@@ -46,8 +46,27 @@ def build_gated_sre_graph() -> StateGraph:
     return workflow
 
 async def run_incident_workflow(incident_payload: dict):
-    """Compiles the graph with the PostgreSQL checkpointer and runs the incident loop."""
+    """Compiles the graph with the PostgreSQL checkpointer and runs the incident loop.
+    
+    Initializes the Semantic MCP Firewall proxy and session context,
+    scoping their lifecycle to this incident workflow execution.
+    """
     workflow = build_gated_sre_graph()
+    
+    # ── Initialize MCP Firewall Components ────────────────────────────
+    # Import here to avoid circular dependencies at module level
+    from mcp_firewall import MCPFirewall
+    from mcp_firewall_session import FirewallSessionContext
+    from procedural_memory import ProceduralMemoryManager
+    
+    # Load firewall config from Redis (cached from params.yml)
+    firewall_config = ProceduralMemoryManager.get_firewall_config()
+    firewall = MCPFirewall(config=firewall_config)
+    session_context = FirewallSessionContext(session_id=incident_payload["incident_id"])
+    
+    print(f"[Firewall] Initialized for incident {incident_payload['incident_id']} "
+          f"with thresholds: allow<{firewall_config.get('thresholds', {}).get('allow_below', 0.30)}, "
+          f"block>={firewall_config.get('thresholds', {}).get('quarantine_below', 0.70)}")
     
     # Retrieve the PostgreSQL checkpointer async context manager
     async with get_working_memory_checkpointer() as checkpointer:
@@ -57,17 +76,19 @@ async def run_incident_workflow(incident_payload: dict):
         # Establish the thread context (thread_id matches incident_id for state tracking)
         config = {"configurable": {"thread_id": incident_payload["incident_id"]}}
         
-        # Initial message kickoff
+        # Initial message kickoff with firewall audit trail initialized
         inputs = {
             "messages": [("user", f"Alert on {incident_payload['service_name']} in namespace {incident_payload['namespace']}")],
             "incident_id": incident_payload["incident_id"],
             "service_name": incident_payload["service_name"],
             "autonomy_level": incident_payload["autonomy_level"],
             "namespace": incident_payload["namespace"],
-            "is_resolved": False
+            "is_resolved": False,
+            "firewall_audit_trail": [],
         }
         
         print(f"--- Triggering Autonomous SRE Run for {incident_payload['incident_id']} ---")
         async for output in app.astream(inputs, config, stream_mode="updates"):
             for node, state_update in output.items():
                 print(f"Node '{node}' completed. Updated State Fields: {list(state_update.keys())}")
+

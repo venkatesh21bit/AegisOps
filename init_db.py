@@ -50,6 +50,36 @@ def setup_db():
             """)
             print("runbooks index created.")
             
+            # ── MCP Firewall Audit Log ────────────────────────────────
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS firewall_audit_log (
+                id SERIAL PRIMARY KEY,
+                incident_id VARCHAR(255) NOT NULL,
+                tool_name VARCHAR(255) NOT NULL,
+                tool_args JSONB NOT NULL,
+                entropy_score FLOAT NOT NULL,
+                privilege_score FLOAT NOT NULL,
+                deviation_score FLOAT NOT NULL,
+                injection_match BOOLEAN NOT NULL,
+                frequency_score FLOAT NOT NULL,
+                composite_risk FLOAT NOT NULL,
+                verdict VARCHAR(20) NOT NULL,
+                matched_rules JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            print("firewall_audit_log table created.")
+            
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS firewall_audit_incident_idx
+            ON firewall_audit_log (incident_id);
+            """)
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS firewall_audit_verdict_idx
+            ON firewall_audit_log (verdict);
+            """)
+            print("firewall_audit_log indexes created.")
+            
             print("Database successfully initialized.")
     finally:
         conn.close()

@@ -6,3 +6,24 @@ service_restrictions:
   - service: database-service
     unrestricted_actions: ["get_logs"]
     approval_required_actions: [] # All other mutating actions are blocked
+
+# ── MCP Firewall Configuration ──────────────────────────────────────────
+# Weights, thresholds, and rate limits are dynamically loaded into Redis
+# and can be adjusted at runtime without redeploying the agent.
+firewall:
+  enabled: true
+  weights:
+    command_entropy: 0.15       # w₁ — Shannon entropy of argument tokens
+    access_privilege: 0.25      # w₂ — Tool + SPL verb privilege tier
+    semantic_deviation: 0.25    # w₃ — Cosine distance from session centroid
+    injection_pattern: 0.30     # w₄ — Binary pattern match (instant BLOCK if 1)
+    call_frequency: 0.05        # w₅ — Sliding-window rate anomaly
+  thresholds:
+    allow_below: 0.30           # Risk < 0.30 → ALLOW
+    quarantine_below: 0.70      # 0.30 ≤ Risk < 0.70 → QUARANTINE
+    # Risk ≥ 0.70 → BLOCK
+  rate_limits:
+    max_calls_per_10s: 8        # Maximum tool calls in a 10-second window
+    max_blocks_per_session: 5   # Kill session after 5 consecutive blocks
+  schema_drift:
+    action: "quarantine"        # "quarantine" = flag + Slack HITL; "block_session" = kill

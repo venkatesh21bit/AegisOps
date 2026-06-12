@@ -1,6 +1,7 @@
 import os
 import yaml
 import redis
+from typing import Any, Dict, Optional
 from langchain_core.tools import ToolException
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -9,17 +10,53 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 class ProceduralMemoryManager:
     @staticmethod
     def load_policies_to_cache(file_path: str = "params.yml"):
-        """Loads and parses local YAML configuration into the active Redis cache."""
+        """Loads and parses local YAML configuration into the active Redis cache.
+        
+        Caches both the service restriction policies and the MCP firewall
+        configuration so they can be read at runtime without filesystem access.
+        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Missing procedural policy rules file: {file_path}")
             
         with open(file_path, "r") as f:
             policies = yaml.safe_load(f)
             
-        # Write rules to Redis
+        # Write service restriction rules to Redis
         redis_client.set("global_autonomy_level", policies.get("autonomy_level", "L3"))
         redis_client.set("service_restrictions", yaml.dump(policies.get("service_restrictions", [])))
+        
+        # Write MCP firewall configuration to Redis
+        firewall_config = policies.get("firewall", {})
+        if firewall_config:
+            redis_client.set("firewall_config", yaml.dump(firewall_config))
+            print("MCP Firewall configuration cached in Redis.")
+        
         print("Procedural memory successfully initialized inside Redis.")
+
+    @staticmethod
+    def get_firewall_config() -> Dict[str, Any]:
+        """Reads and deserializes the cached firewall config from Redis.
+        
+        Returns safe fallback defaults if the cache is empty or Redis
+        is unreachable, ensuring the firewall never fails open due to
+        a cache miss.
+        
+        Returns:
+            Firewall configuration dictionary with weights, thresholds,
+            rate limits, and schema drift settings.
+        """
+        from mcp_firewall import DEFAULT_FIREWALL_CONFIG
+        
+        try:
+            cached = redis_client.get("firewall_config")
+            if cached:
+                config = yaml.safe_load(cached)
+                if isinstance(config, dict):
+                    return config
+        except Exception as e:
+            print(f"[ProceduralMemory] WARNING: Failed to read firewall config from Redis: {e}")
+        
+        return DEFAULT_FIREWALL_CONFIG
 
     @staticmethod
     def verify_action_permissions(service_name: str, requested_action: str) -> bool:
@@ -55,3 +92,4 @@ class ProceduralMemoryManager:
             f"Policy Violated: The SRE Agent is permanently forbidden from executing "
             f"'{requested_action}' on service '{service_name}'."
         )
+

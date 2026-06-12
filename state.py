@@ -23,6 +23,10 @@ class AegisOpsState(TypedDict):
     # Compliance and security audit trails
     tool_audit_trail: Annotated[List[Dict[str, Any]], merge_audit]
     
+    # MCP Firewall audit trail (appended by the firewall proxy)
+    firewall_audit_trail: Annotated[List[Dict[str, Any]], merge_audit]
+    
     # Resolution evaluation
     is_resolved: bool
     retry_count: int
+

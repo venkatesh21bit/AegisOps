@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from state import AegisOpsState
 from episodic_memory import EpisodicMemoryManager
 from semantic_memory import retrieve_runbook
@@ -114,7 +114,10 @@ async def agent_node(state: AegisOpsState) -> Dict[str, Any]:
 
 async def resolution_node(state: AegisOpsState) -> Dict[str, Any]:
     """Closes the incident lifecycle: saves the resolved state to Episodic memory, 
-    resolves the ITSM ticket, and posts the final RCA to Slack."""
+    resolves the ITSM ticket, and posts the final RCA to Slack.
+    
+    Includes MCP Firewall audit data (block/quarantine counts, matched rules)
+    in the final RCA summary for full security observability."""
     print(f"[{state['incident_id']}] Running resolution_node: Closing incident...")
     
     # 1. Formulate the final RCA analysis string
@@ -132,6 +135,21 @@ async def resolution_node(state: AegisOpsState) -> Dict[str, Any]:
         audit["tool"] for audit in state["tool_audit_trail"] if audit["status"] == "Executed"
     ]
     
+    # ── Firewall Audit Summary ────────────────────────────────────────
+    firewall_trail: List[Dict] = state.get("firewall_audit_trail", [])
+    firewall_block_count = sum(
+        1 for entry in firewall_trail
+        if entry.get("verdict") == "BLOCK" or entry.get("source") == "mcp_firewall"
+    )
+    firewall_quarantine_count = sum(
+        1 for entry in firewall_trail
+        if entry.get("verdict") == "QUARANTINE"
+    )
+    firewall_summary = (
+        f"MCP Firewall: {len(firewall_trail)} evaluations, "
+        f"{firewall_block_count} blocks, {firewall_quarantine_count} quarantines."
+    )
+    
     # 2. Write to Episodic Memory (pgvector db commit)
     EpisodicMemoryManager.save_incident_memory(
         incident_id=state["incident_id"],
@@ -144,7 +162,11 @@ async def resolution_node(state: AegisOpsState) -> Dict[str, Any]:
     # 3. Synchronize State to ITSM (Close the incident ticket)
     close_itsm_ticket(
         ticket_id=state["incident_id"],
-        resolution_notes=f"AegisOps completed resolution loop. Executed: {actions_taken}. Summary: {last_assistant_msg[:200]}"
+        resolution_notes=(
+            f"AegisOps completed resolution loop. "
+            f"Executed: {actions_taken}. {firewall_summary} "
+            f"Summary: {last_assistant_msg[:200]}"
+        )
     )
     
     # 4. Dispatch the final audit to Slack channel #all-aegisops
