@@ -15,5 +15,38 @@ services:
     ports:
       - "6379:6379"
 
+  payment-service:
+    build: ./mock_services
+    environment:
+      SERVICE_NAME: payment-service
+      SPLUNK_HEC_URL: ${SPLUNK_HEC_URL:-https://host.docker.internal:8088/services/collector/event}
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}
+      LOG_RATE_MIN: 0.5
+      LOG_RATE_MAX: 1.5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  auth-service:
+    build: ./mock_services
+    environment:
+      SERVICE_NAME: auth-service
+      SPLUNK_HEC_URL: ${SPLUNK_HEC_URL:-https://host.docker.internal:8088/services/collector/event}
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}
+      LOG_RATE_MIN: 0.2
+      LOG_RATE_MAX: 0.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  inventory-service:
+    build: ./mock_services
+    environment:
+      SERVICE_NAME: inventory-service
+      SPLUNK_HEC_URL: ${SPLUNK_HEC_URL:-https://host.docker.internal:8088/services/collector/event}
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}
+      LOG_RATE_MIN: 1.0
+      LOG_RATE_MAX: 3.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   pgdata:

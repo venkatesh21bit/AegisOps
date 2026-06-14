@@ -1,10 +1,29 @@
 autonomy_level: L3 # Supported: L0, L1, L2, L3
 service_restrictions:
   - service: payment-service
-    unrestricted_actions: ["get_logs", "get_pod_status"]
-    approval_required_actions: ["restart_deployment", "update_deployment_image"]
+    unrestricted_actions:
+      - "get_logs"
+      - "get_pod_status"
+      - "check_service_health"
+      - "retrieve_runbook"
+      - "splunk_search_logs"
+      - "splunk_get_error_rate"
+      - "splunk_get_service_info"
+      - "otel_analyze_log_noise"
+      - "otel_generate_filter_rules"
+    approval_required_actions:
+      - "restart_deployment"
+      - "update_deployment_image"
+      - "otel_apply_filter_configmap"
   - service: database-service
-    unrestricted_actions: ["get_logs"]
+    unrestricted_actions:
+      - "get_logs"
+      - "get_pod_status"
+      - "check_service_health"
+      - "retrieve_runbook"
+      - "splunk_search_logs"
+      - "splunk_get_error_rate"
+      - "otel_analyze_log_noise"
     approval_required_actions: [] # All other mutating actions are blocked
 
 # ── MCP Firewall Configuration ──────────────────────────────────────────
