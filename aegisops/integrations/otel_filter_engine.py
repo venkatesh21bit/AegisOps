@@ -341,8 +341,10 @@ def otel_analyze_log_noise(
         noise_threshold: Minimum occurrences for a pattern to be noise.
         namespace: Kubernetes namespace context.
     """
+    # Resolve log directory relative to the project root
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     log_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        _PROJECT_ROOT,
         "logs",
         f"{service_name}.log",
     )
@@ -415,8 +417,10 @@ def otel_generate_filter_rules(
         noise_threshold: Minimum occurrences for noise classification.
         namespace: Kubernetes namespace context.
     """
+    # Resolve log directory relative to the project root
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     log_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        _PROJECT_ROOT,
         "logs",
         f"{service_name}.log",
     )
@@ -460,15 +464,15 @@ def otel_generate_filter_rules(
 
 
 @tool
-def otel_apply_filter_configmap(
+async def otel_apply_filter_configmap(
     service_name: str,
     incident_id: str = "INC-AUTO",
     noise_threshold: int = 10,
     namespace: str = "default",
 ) -> str:
-    """Generates and stages an OTel Collector ConfigMap update with
-    the dynamic noise filter rules. In production, this would apply
-    the ConfigMap and trigger a rolling restart of the OTel DaemonSet.
+    """Generates and autonomously deploys an OTel Collector ConfigMap update 
+    with dynamic noise filter rules, then triggers a rolling restart of the 
+    OTel DaemonSet to immediately suppress compounding telemetry costs.
 
     CAUTION: This is a mutating action that affects log ingestion.
     It will be gated by the procedural policy engine.
@@ -479,8 +483,10 @@ def otel_apply_filter_configmap(
         noise_threshold: Noise classification threshold.
         namespace: Target namespace for the ConfigMap.
     """
+    # Resolve log directory relative to the project root
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     log_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        _PROJECT_ROOT,
         "logs",
         f"{service_name}.log",
     )
@@ -502,34 +508,81 @@ def otel_apply_filter_configmap(
             analysis, service_name, incident_id
         )
 
-        # Stage the ConfigMap YAML
-        configmap_yaml = f"""apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: otel-collector-aegisops-filter
-  namespace: {namespace}
-  labels:
-    app: otel-collector
-    aegisops.io/incident: "{incident_id}"
-    aegisops.io/managed-by: "aegisops-agent"
-data:
-  dynamic_filter.yaml: |
-{_indent_yaml(yaml_config, 4)}
-"""
+        configmap_yaml = f"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: otel-collector-aegisops-filter\n  namespace: {namespace}\n  labels:\n    app: otel-collector\n    aegisops.io/incident: \"{incident_id}\"\ndata:\n  dynamic_filter.yaml: |\n{_indent_yaml(yaml_config, 4)}\n"
 
-        return (
-            f"ConfigMap staged for OTel Collector filter update.\n"
-            f"Incident: {incident_id}\n"
-            f"Service: {service_name}\n"
-            f"Noise patterns to suppress: {stats.get('noise_patterns_count', 0)}\n"
-            f"Expected compression: {stats.get('compression_ratio_pct', 0)}%\n"
-            f"\n"
-            f"── Kubernetes ConfigMap ──\n"
-            f"{configmap_yaml}\n"
-            f"\n"
-            f"To apply: kubectl apply -f <configmap> && "
-            f"kubectl rollout restart daemonset/otel-collector -n {namespace}"
-        )
+        # ── Kubernetes ConfigMap Deployment ──
+        try:
+            import datetime
+            from kubernetes_asyncio import client, config
+            
+            await config.load_kube_config()
+            v1 = client.CoreV1Api()
+            apps_v1 = client.AppsV1Api()
+            
+            configmap_name = "otel-collector-aegisops-filter"
+            
+            body = client.V1ConfigMap(
+                api_version="v1",
+                kind="ConfigMap",
+                metadata=client.V1ObjectMeta(
+                    name=configmap_name,
+                    namespace=namespace,
+                    labels={
+                        "app": "otel-collector",
+                        "aegisops.io/incident": incident_id,
+                        "aegisops.io/managed-by": "aegisops-agent"
+                    }
+                ),
+                data={
+                    "dynamic_filter.yaml": yaml_config
+                }
+            )
+            
+            try:
+                try:
+                    await v1.read_namespaced_config_map(name=configmap_name, namespace=namespace)
+                    await v1.patch_namespaced_config_map(name=configmap_name, namespace=namespace, body=body)
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                        await v1.create_namespaced_config_map(namespace=namespace, body=body)
+                    else:
+                        raise e
+            finally:
+                await v1.api_client.close()
+
+            try:
+                now_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                restart_body = {
+                    "spec": {
+                        "template": {
+                            "metadata": {
+                                "annotations": {
+                                    "kubectl.kubernetes.io/restartedAt": now_timestamp
+                                }
+                            }
+                        }
+                    }
+                }
+                await apps_v1.patch_namespaced_daemon_set(
+                    name="otel-collector",
+                    namespace=namespace,
+                    body=restart_body
+                )
+            finally:
+                await apps_v1.api_client.close()
+
+            return (
+                f"SUCCESS: ConfigMap deployed and OTel Collector DaemonSet restarted.\n"
+                f"Incident: {incident_id} | Service: {service_name}\n"
+                f"Noise patterns suppressed: {stats.get('noise_patterns_count', 0)}\n"
+                f"Expected ingestion cost reduction: {stats.get('compression_ratio_pct', 0)}%\n"
+            )
+
+        except Exception as k8s_err:
+            return (
+                f"Kubernetes API Deployment Failed: {str(k8s_err)}\n"
+                f"Please manually apply the following ConfigMap and restart the daemonset:\n\n{configmap_yaml}"
+            )
 
     except Exception as e:
         return f"ConfigMap generation failed: {str(e)}"
