@@ -10,30 +10,76 @@ AegisOps acts as an intelligent middleware connecting observability platforms to
 
 ```mermaid
 graph TD
-    %% Define Nodes
-    Alerts[Alertmanager / Webhooks]
-    AegisOps[AegisOps API Server]
-    LangGraph[LangGraph Agent Core]
-    Postgres[(PostgreSQL Checkpointer & Vector DB)]
-    Redis[(Redis Procedural Memory)]
-    K8s[Kubernetes Cluster]
-    Splunk[Splunk Enterprise]
-    OTel[OpenTelemetry Collector]
-    Slack[Slack HITL Gateway]
+    %% Define Styles
+    classDef api fill:#4FC3F7,stroke:#333,stroke-width:2px,color:#000;
+    classDef agent fill:#81C784,stroke:#333,stroke-width:2px,color:#000;
+    classDef core fill:#FFB74D,stroke:#333,stroke-width:2px,color:#000;
+    classDef storage fill:#BA68C8,stroke:#333,stroke-width:2px,color:#fff;
+    classDef external fill:#E0E0E0,stroke:#333,stroke-width:2px,color:#000;
 
-    %% Connections
-    Alerts -->|Triggers Incident| AegisOps
-    AegisOps -->|Initializes Graph| LangGraph
+    subgraph "External Trigger Sources"
+        Alerts[Alertmanager / Webhooks]:::external
+    end
+
+    subgraph "AegisOps System"
+        subgraph "API Layer"
+            FastAPI[FastAPI Server]:::api
+            WebhookRouter[Webhook Router]:::api
+            SlackGateway[Slack Interactions Gateway]:::api
+        end
+
+        subgraph "Agent Core (LangGraph)"
+            GraphBuilder[LangGraph Builder]:::agent
+            GatedTools[Gated Tools Executor]:::agent
+            Nodes[Execution Nodes]:::agent
+            PolicyEngine[Semantic Firewall / Policy Engine]:::core
+        end
+
+        subgraph "Storage & Memory"
+            Postgres[(PostgreSQL Checkpointer)]:::storage
+            Redis[(Redis Procedural Memory)]:::storage
+        end
+
+        subgraph "Tools & Integrations"
+            K8sClient[Kubernetes Client]:::core
+            SplunkMCP[Splunk MCP Server]:::core
+            OTelClient[OpenTelemetry Manager]:::core
+            SlackNotifier[Slack Notifier]:::core
+        end
+    end
+
+    subgraph "External Infrastructure"
+        K8s[Kubernetes Cluster]:::external
+        Splunk[Splunk Enterprise]:::external
+        OTel[OpenTelemetry Collector]:::external
+        SlackWorkspace[Slack Workspace]:::external
+    end
+
+    %% API Layer flows
+    Alerts -->|Triggers Incident Webhook| WebhookRouter
+    WebhookRouter -->|Initializes/Resumes Graph| GraphBuilder
+    SlackWorkspace -->|HITL Approval/Denial| SlackGateway
+    SlackGateway -->|Resumes Paused Graph| GraphBuilder
+
+    %% Agent Core flows
+    GraphBuilder <-->|Saves/Resumes State| Postgres
+    GraphBuilder -->|Delegates| Nodes
+    Nodes -->|Uses| GatedTools
     
-    LangGraph <-->|Saves/Resumes State| Postgres
-    LangGraph <-->|Evaluates Safety Policies| Redis
-    
-    LangGraph -->|Queries via Splunk MCP Server| Splunk
-    LangGraph -->|Patches ConfigMaps| OTel
-    LangGraph -->|Executes Read/Write Ops| K8s
-    
-    LangGraph -->|L3 Mutating Actions: Pause| Slack
-    Slack -->|Approve/Deny via Smee/Webhook| AegisOps
+    GatedTools -->|Evaluates Safety| PolicyEngine
+    PolicyEngine <-->|Reads Rules| Redis
+
+    %% Tools flows
+    GatedTools -->|Uses| SplunkMCP
+    GatedTools -->|Uses| K8sClient
+    GatedTools -->|Uses| OTelClient
+    GatedTools -->|L3 Actions Pause & Notify| SlackNotifier
+
+    %% External System interactions
+    SplunkMCP -->|Queries Logs/Metrics| Splunk
+    K8sClient -->|Read/Write Pods & Deployments| K8s
+    OTelClient -->|Patches ConfigMaps| OTel
+    SlackNotifier -->|Sends Interactive Messages| SlackWorkspace
 ```
 
 ---
