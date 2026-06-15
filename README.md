@@ -114,10 +114,29 @@ Start the foundational dependencies (PostgreSQL, Redis) and mock microservices (
 docker-compose up -d
 ```
 
-### 3. Splunk Enterprise Connection
-Ensure you have an external instance of **Splunk Enterprise** running and accessible. AegisOps connects to Splunk via the **Splunk MCP** to run diagnostic searches during incidents. Generate a Splunk Admin Token and a Splunk HEC (HTTP Event Collector) Token for the agent to use.
+### 3. Splunk Enterprise Setup & Connection
+Ensure you have an external instance of **Splunk Enterprise** running and accessible. AegisOps connects to Splunk via the **Splunk MCP** (Model Context Protocol) to run diagnostic searches during incidents. **The MCP capability is critically important, as it serves as the core intelligence conduit, allowing the agentic components to dynamically search logs, analyze incidents, and pull necessary context autonomously.**
 
-### 3. Python Environment Setup
+#### Splunk User Capabilities
+To enable the integrations, you need a dedicated Splunk user account for AegisOps. This user MUST have the following capabilities to run REST API searches and push logs:
+- `search`
+- `edit_tcp`
+- `edit_token_http`
+- (Recommended) Assign the user to the `admin` role or a custom role with equivalent API/search capabilities.
+
+Generate a **Splunk Admin Token** (Bearer token) for this user to allow the MCP server to authenticate and execute searches on behalf of the agent.
+
+#### HTTP Event Collector (HEC) Setup
+To allow AegisOps to push operational logs and metrics back to Splunk, configure the HEC:
+1. In Splunk Web, navigate to **Settings** -> **Data Inputs** -> **HTTP Event Collector**.
+2. Click **Global Settings** and ensure **All Tokens** are enabled.
+3. Click **New Token**. Name it `AegisOps-HEC`.
+4. Skip the source name override unless needed, and click **Next**.
+5. Select the allowed indexes (e.g., `main` or a custom `aegisops` index).
+6. Click **Review** and then **Submit**.
+7. Copy the generated **Token Value**. You will use this as your `SPLUNK_HEC_TOKEN` in the `.env` file.
+
+### 4. Python Environment Setup
 Create a virtual environment and install dependencies:
 
 ```bash
