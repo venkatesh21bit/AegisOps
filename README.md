@@ -28,7 +28,7 @@ graph TD
     LangGraph <-->|Saves/Resumes State| Postgres
     LangGraph <-->|Evaluates Safety Policies| Redis
     
-    LangGraph -->|Queries Logs/Metrics| Splunk
+    LangGraph -->|Queries via Splunk MCP Server| Splunk
     LangGraph -->|Patches ConfigMaps| OTel
     LangGraph -->|Executes Read/Write Ops| K8s
     
@@ -40,7 +40,7 @@ graph TD
 
 ## 🚀 Key Features
 
-* **Autonomous Remediation**: The AI agent independently investigates root causes using observability logs (Splunk) and metrics.
+* **Autonomous Remediation**: The AI agent independently investigates root causes using observability logs and metrics fetched dynamically through a **Splunk MCP (Model Context Protocol) Server** connected to Splunk Enterprise.
 * **LangGraph State Management**: Complex, multi-step incident resolutions are checkpointed to PostgreSQL, ensuring no lost progress and seamless pausing.
 * **Semantic Firewall**: All tool calls are intercepted by an in-memory policy engine that evaluates the safety of operations against pre-defined rules.
 * **Human-in-the-Loop (HITL)**: For mutating level-3 (L3) actions (like restarting deployments or patching ConfigMaps), the graph pauses execution and dispatches an interactive Slack message for human approval before proceeding.
@@ -61,13 +61,15 @@ Ensure you have the following installed:
 - A Slack Workspace with permissions to create an App.
 
 ### 2. Infrastructure Setup (Docker Compose)
-Start the foundational dependencies (PostgreSQL, Redis, Splunk) and mock microservices (Payment, Auth, Inventory) via Docker Compose:
+Start the foundational dependencies (PostgreSQL, Redis) and mock microservices (Payment, Auth, Inventory) via Docker Compose:
 
 ```bash
 # In the root of the project
 docker-compose up -d
 ```
-*Wait for Splunk to initialize (it may take a few minutes).*
+
+### 3. Splunk Enterprise Connection
+Ensure you have an external instance of **Splunk Enterprise** running and accessible. AegisOps connects to Splunk via the **Splunk MCP** to run diagnostic searches during incidents. Generate a Splunk Admin Token and a Splunk HEC (HTTP Event Collector) Token for the agent to use.
 
 ### 3. Python Environment Setup
 Create a virtual environment and install dependencies:
@@ -82,8 +84,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Environment Variables
-Create a `.env` file in the root directory and configure the following variables:
+### 5. Environment Variables
+Create a `.env` file in the root directory (or copy the provided `.env.example`) and configure the following variables:
 
 ```ini
 POSTGRES_DB=aegisops_db
@@ -107,7 +109,7 @@ SLACK_CHANNEL_ID=<your_channel_id>
 KUBECONFIG=./kubeconfig.yaml
 ```
 
-### 5. Slack Webhook Configuration (Smee)
+### 6. Slack Webhook Configuration (Smee)
 Because AegisOps pauses execution to wait for a Slack button click, your local machine needs to receive webhooks from Slack. We use [Smee](https://smee.io/) to securely bypass NAT without warning pages.
 
 1. Open a new terminal and run:
@@ -118,14 +120,14 @@ Because AegisOps pauses execution to wait for a Slack button click, your local m
 3. Set the **Request URL** to `https://smee.io/aegisops`.
 4. Click **Save Changes**.
 
-### 6. Running the API Server
+### 7. Running the API Server
 Start the AegisOps FastAPI application on port 8001:
 
 ```bash
 .venv\Scripts\python.exe -m aegisops.api.main
 ```
 
-### 7. Simulating an Incident
+### 8. Simulating an Incident
 We have provided an automated script that breaks the `payment-service` pod in Kubernetes and subsequently triggers the webhook.
 
 1. Open a new terminal and run:
