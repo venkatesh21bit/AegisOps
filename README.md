@@ -89,8 +89,10 @@ graph TD
 * **Autonomous Remediation**: The AI agent independently investigates root causes using observability logs and metrics fetched dynamically through a **Splunk MCP (Model Context Protocol) Server** connected to Splunk Enterprise.
 * **LangGraph State Management**: Complex, multi-step incident resolutions are checkpointed to PostgreSQL, ensuring no lost progress and seamless pausing.
 * **Semantic Firewall**: All tool calls are intercepted by an in-memory policy engine that evaluates the safety of operations against pre-defined rules.
+* **Enterprise Hardening**: Payload normalization, strict token-bucket rate limiting, and ephemeral transaction tokens prevent injection loops and volumetric DoS.
 * **Human-in-the-Loop (HITL)**: For mutating level-3 (L3) actions (like restarting deployments or patching ConfigMaps), the graph pauses execution and dispatches an interactive Slack message for human approval before proceeding.
-* **Dynamic OpenTelemetry Filtering**: AegisOps can autonomously mutate OTel ConfigMaps to strip redundant telemetry during high-volume incidents, saving cloud costs.
+* **Dynamic OpenTelemetry Edge Processing**: Realtime filtering capabilities using sliding-window structural hashing to suppress log floods, and inline DLP to mask credentials before shipping telemetry.
+* **Strict Memory Determinism**: Cryptographically signed procedural memory and domain-sandboxed episodic memory ensure state isolation and runbook immutability.
 
 ---
 
@@ -203,6 +205,20 @@ We have provided an automated script that breaks the `payment-service` pod in Ku
 3. The graph will **PAUSE** and send an interactive message to your Slack channel.
 4. Click **Approve** in Slack.
 5. The Smee client will forward the click to your local server, the LangGraph checkpoint will resume, and the agent will execute the fix.
+
+### 9. Testing Enterprise Readiness Features
+The `feature/enterprise-readiness` branch includes multiple mock incidents specifically designed to test the resilience of AegisOps against severe operational anomalies.
+
+To generate the mock incidents:
+```bash
+python generate_test_logs.py
+```
+This generates the following scenarios for the agent to resolve:
+- **Observability DDOS:** Over 100k+ stack traces generated instantly to test the real-time edge filter's sliding-window AST structural hashing suppression.
+- **Confused Deputy:** A poisoned payload in the support logs designed to test the MCP semantic firewall's capability to detect malicious injections.
+- **Cryptographic Leak Cascade:** Simulates a microservice dumping credentials, verifying the inline DLP masking engine dynamically redact secrets.
+
+You can also deploy the accompanying mock Kubernetes workloads directly from the `k8s/mock-workloads/` directory.
 
 ---
 

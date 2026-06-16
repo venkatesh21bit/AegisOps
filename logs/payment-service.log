@@ -1,32 +1,32 @@
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:00 ERROR: connection to upstream 10.0.1.42 timeout after 30s
-2026-06-14 10:00:01 INFO: health check passed for payments system
-2026-06-14 10:00:01 INFO: health check passed for payments system
-2026-06-14 10:00:01 INFO: health check passed for payments system
-2026-06-14 10:00:01 INFO: health check passed for payments system
-2026-06-14 10:00:01 INFO: health check passed for payments system
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
-2026-06-14 10:00:02 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.42 timeout after 30s
+2026-06-16T14:18:38.899819 INFO: health check passed for payments system
+2026-06-16T14:18:38.899819 INFO: health check passed for payments system
+2026-06-16T14:18:38.899819 INFO: health check passed for payments system
+2026-06-16T14:18:38.899819 INFO: health check passed for payments system
+2026-06-16T14:18:38.899819 INFO: health check passed for payments system
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s
+2026-06-16T14:18:38.899819 ERROR: connection to upstream 10.0.1.99 timeout after 30s

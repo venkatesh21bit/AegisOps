@@ -1,0 +1,7 @@
+2026-06-16T14:18:38.899819 FATAL TLS configuration mismatch. Handshake failed.
+2026-06-16T14:18:38.899819 ERROR Dumping runtime environment for debugging:
+2026-06-16T14:18:38.899819 ERROR ENV: postgres://admin:supersecret_pg_pwd_123!@db:5432/db
+2026-06-16T14:18:38.899819 ERROR ENV: aws_secret_access_key = AKIAIOSFODNN7EXAMPLE
+2026-06-16T14:18:38.899819 ERROR ENV: STRIPE_SECRET_KEY=sk_live_51Kx2...
+2026-06-16T14:18:38.899819 ERROR Dumping request context:
+2026-06-16T14:18:38.899819 ERROR USER_SSN=123-45-6789 PII_TOKEN=user_7382

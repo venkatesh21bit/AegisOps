@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tls-service
+  namespace: default
+  labels:
+    app: tls-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tls-service
+  template:
+    metadata:
+      labels:
+        app: tls-service
+    spec:
+      containers:
+      - name: tls-service
+        image: busybox:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            while true; do
+              echo "FATAL TLS configuration mismatch. Handshake failed."
+              echo "ERROR Dumping runtime environment for debugging:"
+              echo "ERROR ENV: postgres://admin:supersecret_pg_pwd_123!@db:5432/db"
+              echo "ERROR ENV: aws_secret_access_key = AKIAIOSFODNN7EXAMPLE"
+              echo "ERROR ENV: STRIPE_SECRET_KEY=sk_live_51Kx2..."
+              echo "ERROR Dumping request context:"
+              echo "ERROR USER_SSN=123-45-6789 PII_TOKEN=user_7382"
+              sleep 5
+            done

@@ -592,3 +592,114 @@ def _indent_yaml(text: str, spaces: int) -> str:
     """Indents every line of text by the specified number of spaces."""
     prefix = " " * spaces
     return "\n".join(prefix + line for line in text.split("\n"))
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Real-Time Edge Telemetry Filter
+# ═══════════════════════════════════════════════════════════════════════
+
+from collections import deque
+from dataclasses import dataclass
+
+@dataclass
+class MetaEvent:
+    ast_hash: str
+    count: int
+    start_time: float
+    end_time: float
+    example_log: str
+
+class RealtimeTelemetryFilter:
+    """Lightweight real-time filter for high-throughput telemetry frames.
+    
+    Designed to sit at the edge (proxy/shipper level), applying inline DLP
+    and dynamically suppressing explosive log volumes using structural hashing.
+    """
+    
+    # Regex patterns for Inline Data Minimization (DLP)
+    DLP_RULES = [
+        (re.compile(r'postgres://[^:]+:([^@]+)@'), r'postgres://***:***@'),
+        (re.compile(r'AKIA[0-9A-Z]{16}'), r'AKIA***'),
+        (re.compile(r'(?i)(aws_secret_access_key|secret|password)\s*[=:]\s*([^\s,]+)'), r'\1 = ***'),
+        (re.compile(r'\b\d{3}-\d{2}-\d{4}\b'), r'***-**-****'), # PII (SSN format)
+    ]
+
+    def __init__(self, suppression_threshold: int = 5000, window_ms: float = 100.0):
+        self.suppression_threshold = suppression_threshold
+        self.window_seconds = window_ms / 1000.0
+        
+        # State for sliding window AST structural hashing
+        # hash -> deque of timestamps
+        self._hash_windows: Dict[str, deque] = {}
+        # hash -> active suppression MetaEvent
+        self._suppression_state: Dict[str, MetaEvent] = {}
+
+    def apply_dlp(self, log_line: str) -> str:
+        """Applies Data Loss Prevention (DLP) masking to sensitive data."""
+        masked = log_line
+        for pattern, replacement in self.DLP_RULES:
+            masked = pattern.sub(replacement, masked)
+        return masked
+
+    def _compute_lightweight_ast_hash(self, log_line: str) -> str:
+        """Computes a lightweight structural hash (pseudo-AST) of the log line."""
+        # Strip specific values, leaving only structural patterns
+        structure = re.sub(r'\b\d+\b', 'N', log_line)
+        structure = re.sub(r'(["\']).*?\1', 'S', structure)
+        structure = re.sub(r'\b[0-9a-fA-F-]{36}\b', 'U', structure)
+        return hashlib.md5(structure.encode('utf-8')).hexdigest()
+
+    def process_frame(self, log_line: str) -> Optional[str]:
+        """Processes a single telemetry frame.
+        
+        Returns the processed string (DLP masked), or None if suppressed.
+        If a meta-event should be emitted (starting or ending suppression), 
+        it returns the meta-event string.
+        """
+        now = time.monotonic()
+        
+        # 1. Apply DLP masking inline
+        safe_log = self.apply_dlp(log_line)
+        
+        # 2. Structural Hashing
+        ast_hash = self._compute_lightweight_ast_hash(safe_log)
+        
+        if ast_hash not in self._hash_windows:
+            self._hash_windows[ast_hash] = deque()
+            
+        window = self._hash_windows[ast_hash]
+        window.append(now)
+        
+        # Evict old entries outside the sliding window
+        while window and now - window[0] > self.window_seconds:
+            window.popleft()
+            
+        count_in_window = len(window)
+        
+        # 3. Dynamic Suppression Logic
+        if count_in_window >= self.suppression_threshold:
+            if ast_hash not in self._suppression_state:
+                # Enter suppression mode
+                self._suppression_state[ast_hash] = MetaEvent(
+                    ast_hash=ast_hash,
+                    count=count_in_window,
+                    start_time=window[0],
+                    end_time=now,
+                    example_log=safe_log
+                )
+                return f"[META-EVENT] ALERT: Suppressing burst of {self.suppression_threshold}+ identical logs. Hash: {ast_hash}"
+            else:
+                # Already suppressing, just increment count silently
+                self._suppression_state[ast_hash].count += 1
+                self._suppression_state[ast_hash].end_time = now
+                return None  # Drop the log frame entirely
+        else:
+            if ast_hash in self._suppression_state:
+                # Window volume dropped below threshold, exit suppression mode and emit summary
+                meta = self._suppression_state.pop(ast_hash)
+                summary = (
+                    f"[META-EVENT] RESUME: Log volume normalized. "
+                    f"Suppressed {meta.count} events over {meta.end_time - meta.start_time:.2f}s."
+                )
+                return summary + "\n" + safe_log
+                
+        return safe_log

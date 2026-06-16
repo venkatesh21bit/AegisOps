@@ -27,6 +27,9 @@ Architecture:
 
 import os
 import json
+import time
+import re
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from mcp import ClientSession, StdioServerParameters
@@ -37,6 +40,44 @@ from aegisops.mcp.mcp_firewall_session import FirewallSessionContext
 from aegisops.mcp.firewall_audit_logger import FirewallAuditLogger
 from aegisops.integrations.slack_client import dispatch_slack_approval_block
 
+
+def normalize_payload(arguments: dict) -> dict:
+    """Strips markdown formatting anomalies, homoglyphs, and control chars from tool arguments."""
+    normalized = {}
+    for k, v in arguments.items():
+        if isinstance(v, str):
+            # Remove control characters (except common whitespace like newlines/tabs)
+            v = "".join(ch for ch in v if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\t", "\r"))
+            # NFKC normalization for homoglyphs
+            v = unicodedata.normalize("NFKC", v)
+            # Basic markdown strip (backticks)
+            v = re.sub(r'```[a-z]*\n|\n```|`', '', v)
+            normalized[k] = v
+        elif isinstance(v, dict):
+            normalized[k] = normalize_payload(v)
+        elif isinstance(v, list):
+            normalized[k] = [normalize_payload(i) if isinstance(i, dict) else i for i in v]
+        else:
+            normalized[k] = v
+    return normalized
+
+class TokenBucketRateLimiter:
+    """Enterprise token bucket for strict connection-level rate limiting."""
+    def __init__(self, capacity: int, refill_rate: float):
+        self.capacity = capacity
+        self.tokens = capacity
+        self.refill_rate = refill_rate
+        self.last_refill = time.monotonic()
+
+    def consume(self, amount: int = 1) -> bool:
+        now = time.monotonic()
+        elapsed = now - self.last_refill
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
+        self.last_refill = now
+        if self.tokens >= amount:
+            self.tokens -= amount
+            return True
+        return False
 
 class SecureMCPProxy:
     """Drop-in replacement for raw ``ClientSession`` usage.
@@ -66,6 +107,11 @@ class SecureMCPProxy:
         self.session_context = session_context
         self.incident_id = incident_id
         self.audit_logger = audit_logger or FirewallAuditLogger()
+
+        # Extract rate limit config for the strict token bucket
+        max_calls = self.firewall._rate_limits.get("max_calls_per_10s", 8)
+        # Use a burst capacity of max_calls, and a refill rate of max_calls per 10 seconds
+        self.rate_limiter = TokenBucketRateLimiter(capacity=max_calls, refill_rate=max_calls / 10.0)
 
         # MCP tool names discovered via tools/list
         self._mcp_tool_names: List[str] = []
@@ -140,22 +186,46 @@ class SecureMCPProxy:
 
         return tools_response
 
-    async def call_tool(self, name: str, arguments: dict) -> Any:
+    async def call_tool(self, name: str, arguments: dict, provided_token: Optional[str] = None) -> Any:
         """Core interception point for every ``tools/call``.
 
-        1. Evaluates the call through the firewall.
-        2. If ALLOW: forwards to the MCP server, updates centroid.
-        3. If QUARANTINE: forwards but flags for human review.
-        4. If BLOCK: returns an error message without executing.
-        5. Persists the audit entry to PostgreSQL.
+        1. Strict Token Bucket Rate Limiting.
+        2. Ephemeral Transaction Context Validation.
+        3. Payload Normalization.
+        4. Evaluates the call through the firewall.
+        5. If ALLOW: forwards to the MCP server, updates centroid.
+        6. If QUARANTINE: forwards but flags for human review.
+        7. If BLOCK: returns an error message without executing.
+        8. Persists the audit entry to PostgreSQL.
 
         Args:
             name: The MCP tool name to invoke.
             arguments: The tool arguments dictionary.
+            provided_token: Optional transaction token provided out-of-band.
 
         Returns:
             The tool execution result (or an error message if blocked).
         """
+        # ── Strict Token Bucket Rate Limiting ─────────────────────────
+        if not self.rate_limiter.consume():
+            print(f"[MCP Proxy] CRITICAL: Rate limit breached. Terminating session {self.incident_id}.")
+            await self.close()
+            raise RuntimeError(f"Rate limit exceeded. Connection terminated by Enterprise Token Bucket.")
+
+        # ── Contextual Isolation Validation ───────────────────────────
+        if not self.session_context.transaction_token.is_active:
+            print(f"[MCP Proxy] CRITICAL: Tool call outside ephemeral transaction scope. Terminating.")
+            await self.close()
+            raise RuntimeError("Transaction context invalid or expired. Connection terminated.")
+        
+        if provided_token and not self.session_context.transaction_token.validate(provided_token):
+            print(f"[MCP Proxy] CRITICAL: Invalid ephemeral transaction token. Terminating.")
+            await self.close()
+            raise RuntimeError("Invalid transaction token. Connection terminated.")
+
+        # ── Payload Normalizer ────────────────────────────────────────
+        arguments = normalize_payload(arguments)
+
         # ── Firewall Evaluation ───────────────────────────────────────
         verdict, audit_entry = self.firewall.evaluate(
             tool_name=name,

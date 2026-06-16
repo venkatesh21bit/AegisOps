@@ -19,8 +19,21 @@ import numpy as np
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Deque
+import uuid
 
+@dataclass
+class EphemeralTransactionToken:
+    """Tied to the lifespan of a single troubleshooting graph iteration."""
+    token: str = field(default_factory=lambda: str(uuid.uuid4()))
+    is_active: bool = True
+    
+    def validate(self, provided_token: str) -> bool:
+        """Validates that the provided token matches and is still active."""
+        return self.is_active and self.token == provided_token
 
+    def revoke(self) -> None:
+        """Revokes the token, preventing further tool calls in this context."""
+        self.is_active = False
 @dataclass
 class FirewallCallRecord:
     """A single timestamped record of a tool call for frequency analysis."""
@@ -69,6 +82,9 @@ class FirewallSessionContext:
     phase: str = "diagnostic"
     embedding_count: int = 0
     history_window_seconds: float = 60.0
+    transaction_token: EphemeralTransactionToken = field(
+        default_factory=EphemeralTransactionToken
+    )
 
     # Secondary centroid for the remediation phase
     _remediation_centroid: Optional[np.ndarray] = field(

@@ -1,6 +1,8 @@
 import os
 import yaml
 import redis
+import hmac
+import hashlib
 from typing import Any, Dict, Optional
 from langchain_core.tools import ToolException
 
@@ -18,9 +20,26 @@ class ProceduralMemoryManager:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Missing procedural policy rules file: {file_path}")
             
-        with open(file_path, "r", encoding="utf-8") as f:
-            policies = yaml.safe_load(f)
+        # Cryptographic Signature Verification
+        signing_key = os.getenv("PROCEDURAL_SIGNING_KEY", "default-dev-key").encode('utf-8')
+        sig_path = f"{file_path}.sig"
+        
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
             
+        if os.path.exists(sig_path):
+            with open(sig_path, "r", encoding="utf-8") as sig_f:
+                provided_sig = sig_f.read().strip()
+            
+            expected_sig = hmac.new(signing_key, file_bytes, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(provided_sig, expected_sig):
+                raise PermissionError("Procedural Memory Verification Failed: Invalid cryptographic signature.")
+        else:
+            print(f"WARNING: No signature found at {sig_path}. Enforcing strict determinism.")
+            raise PermissionError("Procedural Memory Verification Failed: Missing cryptographic signature.")
+            
+        policies = yaml.safe_load(file_bytes.decode('utf-8'))
+        
         # Write service restriction rules to Redis
         redis_client.set("global_autonomy_level", policies.get("autonomy_level", "L3"))
         redis_client.set("service_restrictions", yaml.dump(policies.get("service_restrictions", [])))
